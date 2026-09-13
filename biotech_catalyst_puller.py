@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
 Biotech Catalyst Monitor — Weekly Data Puller
-Pulls FMP API data + FDA calendar, outputs CSV for Claude scoring
+Pulls stock data from yfinance + FDA calendar, outputs CSV for Claude scoring
 
 Schedule: Every Friday 09:00 EET via GitHub Actions or local cron
 Output: biotech_catalysts_YYYY-MM-DD.csv (push to GitHub / Google Drive)
+No API key required - uses free yfinance library
 """
 
 import os
@@ -12,12 +13,11 @@ import sys
 import json
 import csv
 from datetime import datetime, timedelta
-import requests
+import yfinance as yf
 from typing import Dict, List, Optional
 
 # Configuration
-FMP_API_KEY = os.getenv('FMP_API_KEY')  # Set this as GitHub Secret or local env var
-FMP_BASE = "https://financialmodelingprep.com/api/v3"
+# Note: yfinance doesn't require API key
 
 # Tickers to monitor (Biotech Catalyst Universe)
 MONITORED_TICKERS = [
@@ -37,36 +37,45 @@ PDUFA_DATES = {
 }
 
 class BiotechCatalystPuller:
-    def __init__(self, api_key: str):
-        self.api_key = api_key
-        self.session = requests.Session()
-        self.session.headers.update({'User-Agent': 'BiotechMonitor/1.0'})
+    def __init__(self):
         self.data = []
 
     def fetch_quote(self, ticker: str) -> Optional[Dict]:
-        """Fetch current quote from FMP."""
+        """Fetch current quote from yfinance."""
         try:
-            url = f"{FMP_BASE}/quote-short/{ticker}"
-            params = {'apikey': self.api_key}
-            resp = self.session.get(url, params=params, timeout=10)
-            resp.raise_for_status()
-            data = resp.json()
-            if data and isinstance(data, list) and len(data) > 0:
-                return data[0]
+            stock = yf.Ticker(ticker)
+            info = stock.info
+            if info and 'currentPrice' in info:
+                return {
+                    'price': info.get('currentPrice', 0),
+                    'changesPercentage': info.get('regularMarketChangePercent', 0),
+                    'marketCap': info.get('marketCap', 0),
+                    'avgVolume': info.get('averageVolume', 0),
+                }
         except Exception as e:
             print(f"⚠️ Error fetching quote {ticker}: {e}", file=sys.stderr)
         return None
 
     def fetch_historical_prices(self, ticker: str, days: int = 60) -> Optional[List[Dict]]:
-        """Fetch last N days of OHLCV data."""
+        """Fetch last N days of OHLCV data from yfinance."""
         try:
-            url = f"{FMP_BASE}/historical-price-full/{ticker}"
-            params = {'apikey': self.api_key, 'limit': days}
-            resp = self.session.get(url, params=params, timeout=10)
-            resp.raise_for_status()
-            data = resp.json()
-            if data and 'historical' in data:
-                return sorted(data['historical'], key=lambda x: x['date'])
+            stock = yf.Ticker(ticker)
+            hist = stock.history(period=f"{days}d")
+            if hist.empty or len(hist) < 20:
+                return None
+            
+            # Convert pandas DataFrame to list of dicts
+            prices = []
+            for idx, row in hist.iterrows():
+                prices.append({
+                    'date': idx.strftime('%Y-%m-%d'),
+                    'close': float(row['Close']),
+                    'open': float(row['Open']),
+                    'high': float(row['High']),
+                    'low': float(row['Low']),
+                    'volume': int(row['Volume']),
+                })
+            return prices
         except Exception as e:
             print(f"⚠️ Error fetching historical {ticker}: {e}", file=sys.stderr)
         return None
@@ -260,7 +269,7 @@ class BiotechCatalystPuller:
             return filename
 
         keys = self.data[0].keys()
-        with open(filename, 'w', newline='') as f:
+        with open(filename, 'w', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=keys)
             writer.writeheader()
             writer.writerows(self.data)
@@ -270,11 +279,7 @@ class BiotechCatalystPuller:
 
 
 def main():
-    if not FMP_API_KEY:
-        print("❌ FMP_API_KEY not set. Set as environment variable: export FMP_API_KEY='your_key'", file=sys.stderr)
-        sys.exit(1)
-
-    puller = BiotechCatalystPuller(FMP_API_KEY)
+    puller = BiotechCatalystPuller()
     puller.pull_all_data()
     filename = puller.export_csv()
     print(filename)  # Output filename to stdout for GitHub Actions
