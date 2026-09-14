@@ -19,22 +19,41 @@ from typing import Dict, List, Optional
 # Configuration
 # Note: yfinance doesn't require API key
 
-# Tickers to monitor (Biotech Catalyst Universe)
-MONITORED_TICKERS = [
-    'CAPR',  # Capricor — Deramiocel (Nov 22, 2026)
-    'NTLA',  # Intellia — Lonvo-z (Mar 10, 2027)
-    'AMLX',  # Amylyx — Avexitide (Q2 2027)
-    'GPCR',  # Structure — Aleniglipron (H1 2027)
-    'INSM', 'ARGX', 'VEEV', 'NTRA', 'ARWR', 'CRSP', 'CDNA',  # Expansion universe
-]
+# Tickers to monitor: Read from fda_pdufa_calendar.csv
+MONITORED_TICKERS = []
+PDUFA_DATES = {}
 
-# Known PDUFA dates (manually curated; update weekly from FDA calendar)
-PDUFA_DATES = {
-    'CAPR': '2026-11-22',
-    'NTLA': '2027-03-10',
-    'AMLX': '2027-06-30',  # Estimated Q2 2027
-    'GPCR': None,  # TBD (waiting for Phase 3 data + End-of-Phase-2 meeting)
-}
+def load_fda_calendar(filename: str = 'fda_pdufa_calendar.csv') -> tuple:
+    """Load FDA PDUFA calendar from CSV. Returns (tickers list, pdufa_dates dict)."""
+    tickers = []
+    pdufa_dates = {}
+    
+    try:
+        with open(filename, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                ticker = row.get('ticker', '').strip()
+                pdufa_date = row.get('pdufa_date', '').strip()
+                status = row.get('status', '').strip().upper()
+                
+                # Only include active tickers with defined PDUFA dates
+                if ticker and pdufa_date and status == 'ACTIVE':
+                    tickers.append(ticker)
+                    pdufa_dates[ticker] = pdufa_date
+        
+        if tickers:
+            print(f"✓ Loaded {len(tickers)} active tickers from FDA calendar: {', '.join(tickers)}", file=sys.stderr)
+        else:
+            print("⚠️ No active tickers found in FDA calendar", file=sys.stderr)
+    
+    except FileNotFoundError:
+        print(f"❌ FDA calendar file '{filename}' not found", file=sys.stderr)
+        return [], {}
+    except Exception as e:
+        print(f"❌ Error loading FDA calendar: {e}", file=sys.stderr)
+        return [], {}
+    
+    return tickers, pdufa_dates
 
 class BiotechCatalystPuller:
     def __init__(self):
@@ -279,6 +298,15 @@ class BiotechCatalystPuller:
 
 
 def main():
+    global MONITORED_TICKERS, PDUFA_DATES
+    
+    # Load FDA PDUFA calendar
+    MONITORED_TICKERS, PDUFA_DATES = load_fda_calendar()
+    
+    if not MONITORED_TICKERS:
+        print("❌ No tickers to monitor. Check fda_pdufa_calendar.csv", file=sys.stderr)
+        sys.exit(1)
+    
     puller = BiotechCatalystPuller()
     puller.pull_all_data()
     filename = puller.export_csv()
