@@ -1,0 +1,4 @@
+ticker,date,price,price_change_pct,market_cap,avg_volume_3m,ma20,ma60,vol20_avg,vol60_avg,ma20_slope,up_volume_pct,return_60d_pct,early_run_warning,momentum_confirmations,eligible_3of4,momentum_details,pdufa_date,days_to_pdufa,pdufa_status,t60_date,t14_date,t60_active
+CAPR,2026-09-25,8.57,-1.15341,498251104,6522663,N/A,N/A,N/A,N/A,N/A,N/A,N/A,False,1,False,✓ Price 8.57 > MA20 0 | ✗ MA20 slope 0 | ✗ Vol20 0 <= Vol60 0 | ✗ Up-vol 0% <= 50%,2026-11-22,57,T-60 ACTIVE,2026-09-23,2026-11-08,True
+NTLA,2026-09-25,12.16,-1.37875,1703940480,4032095,N/A,N/A,N/A,N/A,N/A,N/A,N/A,False,1,False,✓ Price 12.16 > MA20 0 | ✗ MA20 slope 0 | ✗ Vol20 0 <= Vol60 0 | ✗ Up-vol 0% <= 50%,2027-03-10,165,ACTIVE,2027-01-09,2027-02-24,False
+AMLX,2026-09-25,30.14,-1.51936,3846663936,2433700,N/A,N/A,N/A,N/A,N/A,N/A,N/A,False,1,False,✓ Price 30.14 > MA20 0 | ✗ MA20 slope 0 | ✗ Vol20 0 <= Vol60 0 | ✗ Up-vol 0% <= 50%,2027-06-30,277,ACTIVE,2027-05-01,2027-06-16,False
